@@ -44,6 +44,7 @@
     border-radius:10px; padding:8px 12px; font-size:12px; font-weight:600; white-space:nowrap;
   }
   .summary .chip b{ display:block; font-size:16px; font-weight:750; }
+  .summary .chip.ejecutar{ background:#f3ead9; color:var(--amarillo); }
 
   #controls{
     background:#fff; border-bottom:1px solid var(--borde);
@@ -87,12 +88,16 @@
   .card .accion b{ color:var(--verde-oscuro); }
   .card .monto{ font-size:13px; font-weight:700; color:var(--verde-oscuro); margin-top:4px; }
   .card .contacto{ font-size:11.5px; color:var(--gris); margin-bottom:4px; }
+  .card .notas{ font-size:11.5px; color:var(--tinta); background:#f3ead9; border-radius:6px; padding:5px 7px; margin-top:6px; }
+  .card .termino{ font-size:11px; color:var(--amarillo); font-weight:600; margin-top:4px; }
   .card .montos{ margin-top:4px; border-top:1px solid var(--borde); padding-top:6px; }
   .card .monto-linea{
     display:flex; justify-content:space-between; gap:8px;
     font-size:11.5px; color:var(--gris); padding:1px 0;
   }
   .card .monto-linea b{ color:var(--verde-oscuro); font-weight:700; font-variant-numeric:tabular-nums; }
+  .card .monto-linea.ejecutar b{ color:var(--amarillo); }
+  .card .monto-linea.cobrar b{ color:var(--rojo); }
   .empty-col, .empty-board{ font-size:12px; color:var(--gris); padding:12px 4px; font-style:italic; }
   #status-bar{ text-align:center; font-size:11.5px; color:var(--gris); padding:0 16px 18px; }
   #refresh{
@@ -137,6 +142,7 @@
         <option value="cliente">Cliente</option>
         <option value="codigo">Código</option>
         <option value="created_at">Fecha de captura</option>
+        <option value="fecha_termino_tentativa">Fecha de término tentativa</option>
       </select>
     </div>
     <div class="ctrl"><label>Dirección</label>
@@ -166,6 +172,11 @@ let ALL_ROWS = [];
 function fmtMoney(n){
   if(n === null || n === undefined) return null;
   return "$" + Number(n).toLocaleString("es-MX", {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function fmtDate(d){
+  if(!d) return null;
+  const [y,m,day] = d.split('-');
+  return `${day}/${m}/${y}`;
 }
 function estadoClass(estado){
   if(estado === "Durango") return "durango";
@@ -198,17 +209,20 @@ function updateSummary(rows){
   const activos = rows.filter(r => !["Pagada - Cerrada","Perdida / Descartada - No viable"].includes(r.status));
   const montoCotizado = rows.reduce((a,r)=> a + (Number(r.monto_cotizacion)||0), 0);
   const montoAutorizado = rows.reduce((a,r)=> a + (Number(r.precio_venta_autorizado)||0), 0);
-  const montoPorCobrar = rows.reduce((a,r)=>{
-    const base = Number(r.precio_venta_autorizado) || Number(r.monto_facturado) || 0;
-    const cobrado = Number(r.monto_cobrado) || 0;
-    return a + Math.max(0, base - cobrado);
-  }, 0);
+
+  // Por cobrar: trabajo ya ejecutado que aún no se cobra (campo real de la BD, ya no un cálculo aproximado).
+  const montoPorCobrar = rows.reduce((a,r)=> a + (Number(r.monto_pendiente_cobrar)||0), 0);
+
+  // Por ejecutar: parte del contrato autorizado que aún no se ha trabajado (sin importar si ya se cobró anticipo).
+  const montoPorEjecutar = rows.reduce((a,r)=> a + (Number(r.monto_pendiente_ejecutar)||0), 0);
+
   summary.innerHTML = `
     <div class="chip"><b>${rows.length}</b>Total</div>
     <div class="chip"><b>${activos.length}</b>Activas</div>
     <div class="chip"><b>${fmtMoney(montoCotizado) || "$0"}</b>Cotizado</div>
     <div class="chip"><b>${fmtMoney(montoAutorizado) || "$0"}</b>Autorizado</div>
     <div class="chip"><b>${fmtMoney(montoPorCobrar) || "$0"}</b>Por cobrar</div>
+    <div class="chip ejecutar"><b>${fmtMoney(montoPorEjecutar) || "$0"}</b>Por ejecutar</div>
   `;
 }
 
@@ -234,7 +248,13 @@ function applyFiltersAndSort(){
       let va = a[orderField], vb = b[orderField];
       const numeric = ["monto_cotizacion","costo_presupuestado"].includes(orderField);
       if(numeric){ va = Number(va)||0; vb = Number(vb)||0; return dir*(va-vb); }
-      if(orderField === "created_at"){ return dir*(new Date(va) - new Date(vb)); }
+      if(orderField === "created_at" || orderField === "fecha_termino_tentativa"){
+        // nulls al final sin importar la dirección
+        if(!va && !vb) return 0;
+        if(!va) return 1;
+        if(!vb) return -1;
+        return dir*(new Date(va) - new Date(vb));
+      }
       va = (va||"").toString(); vb = (vb||"").toString();
       return dir*va.localeCompare(vb,'es');
     });
@@ -275,14 +295,16 @@ function buildCard(r){
   card.className = "card " + estadoClass(r.estado_republica);
 
   const montoLines = [
-    ["Cotización", r.monto_cotizacion],
-    ["Costo presupuestado", r.costo_presupuestado],
-    ["Costo real", r.costo_real],
-    ["Precio de venta autorizado", r.precio_venta_autorizado],
-    ["Facturado", r.monto_facturado],
-    ["Cobrado", r.monto_cobrado],
-    ["Pendiente de cobrar", r.monto_pendiente_cobrar],
-    ["Pendiente de facturar", r.monto_pendiente_facturar],
+    ["Cotización", r.monto_cotizacion, ""],
+    ["Costo presupuestado", r.costo_presupuestado, ""],
+    ["Costo real", r.costo_real, ""],
+    ["Precio de venta autorizado", r.precio_venta_autorizado, ""],
+    ["Ejecutado", r.monto_ejecutado, ""],
+    ["Pendiente de ejecutar", r.monto_pendiente_ejecutar, "ejecutar"],
+    ["Facturado", r.monto_facturado, ""],
+    ["Cobrado", r.monto_cobrado, ""],
+    ["Pendiente de cobrar", r.monto_pendiente_cobrar, "cobrar"],
+    ["Pendiente de facturar", r.monto_pendiente_facturar, ""],
   ].filter(([,v]) => v !== null && v !== undefined);
 
   card.innerHTML = `
@@ -294,10 +316,12 @@ function buildCard(r){
       ${r.responsable ? `<span class="tag resp">${r.responsable}</span>` : ""}
     </div>
     ${r.contacto ? `<div class="contacto">${r.contacto}</div>` : ""}
-    ${montoLines.length ? `<div class="montos">${montoLines.map(([label,v]) =>
-      `<div class="monto-linea"><span>${label}</span><b>${fmtMoney(v)}</b></div>`
+    ${montoLines.length ? `<div class="montos">${montoLines.map(([label,v,cls]) =>
+      `<div class="monto-linea ${cls}"><span>${label}</span><b>${fmtMoney(v)}</b></div>`
     ).join("")}</div>` : ""}
     ${r.proxima_accion ? `<div class="accion"><b>Próxima acción:</b> ${r.proxima_accion}</div>` : ""}
+    ${r.fecha_termino_tentativa ? `<div class="termino">Término tentativo: ${fmtDate(r.fecha_termino_tentativa)}</div>` : ""}
+    ${r.notas ? `<div class="notas">${r.notas}</div>` : ""}
   `;
   return card;
 }
