@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRS · Solicitudes</title>
+<style>
+  :root{
+    --verde-oscuro:#1f3d2e;
+    --verde:#2f6b4f;
+    --verde-claro:#e8f0ea;
+    --arena:#f6f4ef;
+    --tinta:#20241f;
+    --gris:#6b7268;
+    --borde:#dbe2dc;
+    --rojo:#b3452f;
+    --amarillo:#a9782c;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--arena);
+    color:var(--tinta);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  header{
+    padding:20px 16px 14px;
+    background:var(--verde-oscuro);
+    color:#fff;
+    position:sticky;
+    top:0;
+    z-index:6;
+  }
+  header h1{ margin:0; font-size:19px; font-weight:650; }
+  header p{ margin:4px 0 0; font-size:12.5px; color:#c9dccf; }
+
+  .summary{
+    display:flex; gap:8px; padding:12px 16px; overflow-x:auto;
+    background:#fff; border-bottom:1px solid var(--borde);
+  }
+  .summary .chip{
+    flex:0 0 auto; background:var(--verde-claro); color:var(--verde-oscuro);
+    border-radius:10px; padding:8px 12px; font-size:12px; font-weight:600; white-space:nowrap;
+  }
+  .summary .chip b{ display:block; font-size:16px; font-weight:750; }
+  .summary .chip.ejecutar{ background:#f3ead9; color:var(--amarillo); }
+
+  #controls{
+    background:#fff; border-bottom:1px solid var(--borde);
+    padding:10px 16px 12px; position:sticky; top:74px; z-index:5;
+  }
+  .controls-row{ display:flex; gap:8px; overflow-x:auto; padding-bottom:6px; }
+  .controls-row + .controls-row{ margin-top:2px; }
+  .ctrl{ flex:0 0 auto; display:flex; flex-direction:column; gap:2px; }
+  .ctrl label{ font-size:10px; color:var(--gris); font-weight:700; text-transform:uppercase; letter-spacing:0.3px; }
+  .ctrl select, .ctrl input{
+    font-size:12.5px; padding:6px 8px; border-radius:7px; border:1px solid var(--borde);
+    background:var(--arena); color:var(--tinta); min-width:132px;
+  }
+  #clearFilters{
+    align-self:flex-end; border:1px solid var(--rojo); color:var(--rojo); background:#fff;
+    border-radius:7px; font-size:11.5px; padding:6px 10px; white-space:nowrap;
+  }
+  #order-dir{ min-width:auto; width:76px; }
+
+  #board{ display:flex; gap:12px; padding:14px 16px 40px; overflow-x:auto; scroll-snap-type:x proximity; }
+  .col{ flex:0 0 280px; scroll-snap-align:start; }
+  .col-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 4px 8px; border-bottom:2px solid var(--verde); margin-bottom:10px;
+  }
+  .col-head h2{ font-size:13px; margin:0; font-weight:700; color:var(--verde-oscuro); }
+  .col-head span{ font-size:12px; background:var(--verde); color:#fff; border-radius:20px; padding:1px 8px; font-weight:700; }
+
+  .card{
+    background:#fff; border:1px solid var(--borde); border-left:4px solid var(--verde);
+    border-radius:8px; padding:10px 12px; margin-bottom:10px; box-shadow:0 1px 2px rgba(0,0,0,0.03);
+  }
+  .card.durango{ border-left-color:var(--amarillo); }
+  .card.sonora{ border-left-color:var(--rojo); }
+  .card .cliente{ font-size:13.5px; font-weight:650; margin:0 0 2px; line-height:1.3; }
+  .card .codigo{ font-size:11px; color:var(--gris); font-variant-numeric:tabular-nums; margin-bottom:6px; }
+  .card .meta{ display:flex; flex-wrap:wrap; gap:5px; margin-bottom:6px; }
+  .tag{ font-size:10.5px; padding:2px 7px; border-radius:20px; background:var(--verde-claro); color:var(--verde-oscuro); font-weight:600; }
+  .tag.resp{ background:#eef0e6; color:#4b4f3d; }
+  .card .accion{ font-size:12px; color:var(--tinta); border-top:1px dashed var(--borde); padding-top:6px; margin-top:2px; }
+  .card .accion b{ color:var(--verde-oscuro); }
+  .card .monto{ font-size:13px; font-weight:700; color:var(--verde-oscuro); margin-top:4px; }
+  .card .contacto{ font-size:11.5px; color:var(--gris); margin-bottom:4px; }
+  .card .notas{ font-size:11.5px; color:var(--tinta); background:#f3ead9; border-radius:6px; padding:5px 7px; margin-top:6px; }
+  .card .termino{ font-size:11px; color:var(--amarillo); font-weight:600; margin-top:4px; }
+  .card .montos{ margin-top:4px; border-top:1px solid var(--borde); padding-top:6px; }
+  .card .monto-linea{
+    display:flex; justify-content:space-between; gap:8px;
+    font-size:11.5px; color:var(--gris); padding:1px 0;
+  }
+  .card .monto-linea b{ color:var(--verde-oscuro); font-weight:700; font-variant-numeric:tabular-nums; }
+  .card .monto-linea.ejecutar b{ color:var(--amarillo); }
+  .card .monto-linea.cobrar b{ color:var(--rojo); }
+  .empty-col, .empty-board{ font-size:12px; color:var(--gris); padding:12px 4px; font-style:italic; }
+  #status-bar{ text-align:center; font-size:11.5px; color:var(--gris); padding:0 16px 18px; }
+  #refresh{
+    background:none; border:1px solid #3f6b53; color:#dcefe3; border-radius:20px;
+    font-size:11.5px; padding:5px 12px; margin-top:10px;
+  }
+  .loading, .error{ padding:30px 16px; text-align:center; color:var(--gris); font-size:13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Solicitudes de Clientes</h1>
+  <p id="subtitle">Cargando datos en vivo desde Supabase…</p>
+  <p style="margin:2px 0 0; font-size:11px; color:#a9c2b1; font-style:italic;">*Todos los montos son antes de IVA</p>
+  <button id="refresh">↻ Actualizar</button>
+</header>
+
+<div class="summary" id="summary"></div>
+
+<div id="controls">
+  <div class="controls-row">
+    <div class="ctrl"><label>Cliente</label><select id="f-cliente"><option value="">Todos</option></select></div>
+    <div class="ctrl"><label>Código</label><select id="f-codigo"><option value="">Todos</option></select></div>
+    <div class="ctrl"><label>Estado</label><select id="f-estado"><option value="">Todos</option></select></div>
+    <div class="ctrl"><label>Unidad de negocio</label><select id="f-unidad"><option value="">Todas</option></select></div>
+  </div>
+  <div class="controls-row">
+    <div class="ctrl"><label>Responsable</label><select id="f-responsable"><option value="">Todos</option></select></div>
+    <div class="ctrl"><label>Canal de entrada</label><select id="f-canal"><option value="">Todos</option></select></div>
+    <div class="ctrl"><label>Status</label><select id="f-status"><option value="">Todos</option></select></div>
+    <button id="clearFilters">Limpiar filtros</button>
+  </div>
+  <div class="controls-row">
+    <div class="ctrl"><label>Ordenar por</label>
+      <select id="order-field">
+        <option value="pipeline">Pipeline (default)</option>
+        <option value="monto_cotizacion">Monto de cotización</option>
+        <option value="costo_presupuestado">Costo presupuestado</option>
+        <option value="proxima_accion">Próxima acción</option>
+        <option value="responsable">Responsable</option>
+        <option value="cliente">Cliente</option>
+        <option value="codigo">Código</option>
+        <option value="created_at">Fecha de captura</option>
+        <option value="fecha_termino_tentativa">Fecha de término tentativa</option>
+      </select>
+    </div>
+    <div class="ctrl"><label>Dirección</label>
+      <select id="order-dir">
+        <option value="desc">↓</option>
+        <option value="asc">↑</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div id="board"><div class="loading">Cargando solicitudes…</div></div>
+<div id="status-bar"></div>
+
+<script>
+const SUPABASE_URL = "https://kzeculiumpoaeoanwscd.supabase.co";
+const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6ZWN1bGl1bXBvYWVvYW53c2NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MTAwODAsImV4cCI6MjA5NTk4NjA4MH0.egJ7PLjP7bWJ5Cs9xp7uZ9sECNiOfDx29d03Cs2rZQE";
+
+const STATUS_ORDER = [
+  "Nueva","En análisis","Cotización en proceso","Cotización enviada","En negociación",
+  "Ganada - en ejecución","Facturado - pendiente de cobro",
+  "Perdida / Descartada - No viable","Pagada - Cerrada"
+];
+
+let ALL_ROWS = [];
+
+function fmtMoney(n){
+  if(n === null || n === undefined) return null;
+  return "$" + Number(n).toLocaleString("es-MX", {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function fmtDate(d){
+  if(!d) return null;
+  const [y,m,day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
+function estadoClass(estado){
+  if(estado === "Durango") return "durango";
+  if(estado === "Sonora") return "sonora";
+  return "";
+}
+function uniqueSorted(rows, field){
+  return [...new Set(rows.map(r => r[field]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
+}
+function populateSelect(id, values, current){
+  const sel = document.getElementById(id);
+  const keep = current !== undefined ? current : sel.value;
+  sel.innerHTML = '<option value="">' + sel.options[0].textContent + '</option>' +
+    values.map(v => `<option value="${v}">${v}</option>`).join("");
+  sel.value = keep && values.includes(keep) ? keep : "";
+}
+
+function populateFilterOptions(){
+  populateSelect("f-cliente", uniqueSorted(ALL_ROWS, "cliente"));
+  populateSelect("f-codigo", uniqueSorted(ALL_ROWS, "codigo"));
+  populateSelect("f-estado", uniqueSorted(ALL_ROWS, "estado_republica"));
+  populateSelect("f-unidad", uniqueSorted(ALL_ROWS, "unidad_negocio"));
+  populateSelect("f-responsable", uniqueSorted(ALL_ROWS, "responsable"));
+  populateSelect("f-canal", uniqueSorted(ALL_ROWS, "canal_entrada"));
+  populateSelect("f-status", STATUS_ORDER.filter(s => ALL_ROWS.some(r => r.status === s)));
+}
+
+function updateSummary(rows){
+  const summary = document.getElementById("summary");
+  const activos = rows.filter(r => !["Pagada - Cerrada","Perdida / Descartada - No viable"].includes(r.status));
+  const montoCotizado = rows.reduce((a,r)=> a + (Number(r.monto_cotizacion)||0), 0);
+  const montoAutorizado = rows.reduce((a,r)=> a + (Number(r.precio_venta_autorizado)||0), 0);
+
+  // Por cobrar: trabajo ya ejecutado que aún no se cobra (campo real de la BD, ya no un cálculo aproximado).
+  const montoPorCobrar = rows.reduce((a,r)=> a + (Number(r.monto_pendiente_cobrar)||0), 0);
+
+  // Por ejecutar: parte del contrato autorizado que aún no se ha trabajado (sin importar si ya se cobró anticipo).
+  const montoPorEjecutar = rows.reduce((a,r)=> a + (Number(r.monto_pendiente_ejecutar)||0), 0);
+
+  summary.innerHTML = `
+    <div class="chip"><b>${rows.length}</b>Total</div>
+    <div class="chip"><b>${activos.length}</b>Activas</div>
+    <div class="chip"><b>${fmtMoney(montoCotizado) || "$0"}</b>Cotizado</div>
+    <div class="chip"><b>${fmtMoney(montoAutorizado) || "$0"}</b>Autorizado</div>
+    <div class="chip"><b>${fmtMoney(montoPorCobrar) || "$0"}</b>Por cobrar</div>
+    <div class="chip ejecutar"><b>${fmtMoney(montoPorEjecutar) || "$0"}</b>Por ejecutar</div>
+  `;
+}
+
+function applyFiltersAndSort(){
+  const f = {
+    cliente: document.getElementById("f-cliente").value,
+    codigo: document.getElementById("f-codigo").value,
+    estado_republica: document.getElementById("f-estado").value,
+    unidad_negocio: document.getElementById("f-unidad").value,
+    responsable: document.getElementById("f-responsable").value,
+    canal_entrada: document.getElementById("f-canal").value,
+    status: document.getElementById("f-status").value,
+  };
+  let rows = ALL_ROWS.filter(r => Object.keys(f).every(k => !f[k] || r[k] === f[k]));
+
+  updateSummary(rows);
+
+  const orderField = document.getElementById("order-field").value;
+  const dir = document.getElementById("order-dir").value === "asc" ? 1 : -1;
+
+  if(orderField !== "pipeline"){
+    rows = [...rows].sort((a,b) => {
+      let va = a[orderField], vb = b[orderField];
+      const numeric = ["monto_cotizacion","costo_presupuestado"].includes(orderField);
+      if(numeric){ va = Number(va)||0; vb = Number(vb)||0; return dir*(va-vb); }
+      if(orderField === "created_at" || orderField === "fecha_termino_tentativa"){
+        // nulls al final sin importar la dirección
+        if(!va && !vb) return 0;
+        if(!va) return 1;
+        if(!vb) return -1;
+        return dir*(new Date(va) - new Date(vb));
+      }
+      va = (va||"").toString(); vb = (vb||"").toString();
+      return dir*va.localeCompare(vb,'es');
+    });
+  }
+  renderBoard(rows, orderField === "pipeline");
+}
+
+function renderBoard(rows, groupByPipeline){
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+
+  if(!rows.length){
+    board.innerHTML = '<div class="empty-board">Ninguna solicitud coincide con estos filtros.</div>';
+    return;
+  }
+
+  if(groupByPipeline){
+    const groups = {};
+    rows.forEach(r => { (groups[r.status] = groups[r.status] || []).push(r); });
+    STATUS_ORDER.filter(s => groups[s] && groups[s].length).forEach(status => {
+      board.appendChild(buildColumn(status, groups[status]));
+    });
+  } else {
+    board.appendChild(buildColumn("Resultados (" + rows.length + ")", rows));
+  }
+}
+
+function buildColumn(title, items){
+  const col = document.createElement("div");
+  col.className = "col";
+  col.innerHTML = `<div class="col-head"><h2>${title}</h2><span>${items.length}</span></div>`;
+  items.forEach(r => col.appendChild(buildCard(r)));
+  return col;
+}
+
+function buildCard(r){
+  const card = document.createElement("div");
+  card.className = "card " + estadoClass(r.estado_republica);
+
+  const montoLines = [
+    ["Cotización", r.monto_cotizacion, ""],
+    ["Costo presupuestado", r.costo_presupuestado, ""],
+    ["Costo real", r.costo_real, ""],
+    ["Precio de venta autorizado", r.precio_venta_autorizado, ""],
+    ["Ejecutado", r.monto_ejecutado, ""],
+    ["Pendiente de ejecutar", r.monto_pendiente_ejecutar, "ejecutar"],
+    ["Facturado", r.monto_facturado, ""],
+    ["Cobrado", r.monto_cobrado, ""],
+    ["Pendiente de cobrar", r.monto_pendiente_cobrar, "cobrar"],
+    ["Pendiente de facturar", r.monto_pendiente_facturar, ""],
+  ].filter(([,v]) => v !== null && v !== undefined);
+
+  card.innerHTML = `
+    <div class="cliente">${r.cliente || "(sin cliente)"}</div>
+    <div class="codigo">${r.codigo || ""} · ${r.status}</div>
+    <div class="meta">
+      ${r.estado_republica ? `<span class="tag">${r.estado_republica}</span>` : ""}
+      ${r.unidad_negocio ? `<span class="tag">${r.unidad_negocio}</span>` : ""}
+      ${r.responsable ? `<span class="tag resp">${r.responsable}</span>` : ""}
+    </div>
+    ${r.contacto ? `<div class="contacto">${r.contacto}</div>` : ""}
+    ${montoLines.length ? `<div class="montos">${montoLines.map(([label,v,cls]) =>
+      `<div class="monto-linea ${cls}"><span>${label}</span><b>${fmtMoney(v)}</b></div>`
+    ).join("")}</div>` : ""}
+    ${r.proxima_accion ? `<div class="accion"><b>Próxima acción:</b> ${r.proxima_accion}</div>` : ""}
+    ${r.fecha_termino_tentativa ? `<div class="termino">Término tentativo: ${fmtDate(r.fecha_termino_tentativa)}</div>` : ""}
+    ${r.notas ? `<div class="notas">${r.notas}</div>` : ""}
+  `;
+  return card;
+}
+
+async function loadData(){
+  const board = document.getElementById("board");
+  const summary = document.getElementById("summary");
+  const subtitle = document.getElementById("subtitle");
+  const statusBar = document.getElementById("status-bar");
+  board.innerHTML = '<div class="loading">Cargando solicitudes…</div>';
+
+  try {
+    const res = await fetch(
+      SUPABASE_URL + "/rest/v1/solicitudes?select=*&order=created_at.asc",
+      { headers: { apikey: ANON_KEY, Authorization: "Bearer " + ANON_KEY } }
+    );
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    ALL_ROWS = await res.json();
+
+    populateFilterOptions();
+    applyFiltersAndSort();
+
+    subtitle.textContent = ALL_ROWS.length + " solicitudes registradas · datos en vivo";
+    statusBar.textContent = "Última actualización: " + new Date().toLocaleString("es-MX");
+  } catch(err){
+    board.innerHTML = '<div class="error">No se pudo cargar la información (' + err.message + '). Verifica que el proyecto de Supabase esté activo, e intenta actualizar.</div>';
+    subtitle.textContent = "Error de conexión";
+  }
+}
+
+["f-cliente","f-codigo","f-estado","f-unidad","f-responsable","f-canal","f-status","order-field","order-dir"]
+  .forEach(id => document.getElementById(id).addEventListener("change", applyFiltersAndSort));
+
+document.getElementById("clearFilters").addEventListener("click", () => {
+  ["f-cliente","f-codigo","f-estado","f-unidad","f-responsable","f-canal","f-status"]
+    .forEach(id => document.getElementById(id).value = "");
+  document.getElementById("order-field").value = "pipeline";
+  applyFiltersAndSort();
+});
+
+document.getElementById("refresh").addEventListener("click", loadData);
+loadData();
+</script>
+
+</body>
+</html>
