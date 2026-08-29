@@ -149,6 +149,48 @@
     background:none; border:1px solid #3f6b53; color:#dcefe3; border-radius:20px;
     font-size:11px; padding:4px 10px; cursor:pointer;
   }
+  #closed-btn{
+    background:none; border:1px solid #3f6b53; color:#dcefe3; border-radius:20px;
+    font-size:11px; padding:4px 10px; cursor:pointer;
+  }
+
+  .gastos-section{
+    background:#fff; margin:14px 16px 0; padding:12px 14px; border-radius:10px;
+    border:1px solid var(--borde);
+  }
+  .gastos-head{ font-size:12px; font-weight:700; color:var(--verde-oscuro); margin-bottom:10px; }
+  .gastos-head .gastos-note{ font-weight:500; color:var(--gris); font-size:11px; }
+  .gastos-cards{ display:flex; gap:10px; flex-wrap:wrap; }
+  .gasto-card{
+    flex:1 1 200px; background:var(--arena); border:1px solid var(--borde); border-radius:8px; padding:10px 12px;
+  }
+  .gasto-nombre{ font-size:12.5px; font-weight:650; color:var(--tinta); }
+  .gasto-total{ font-size:18px; font-weight:750; color:var(--verde-oscuro); margin-top:2px; }
+  .gasto-count{ font-size:11px; color:var(--gris); margin-top:2px; }
+  .gasto-detail .gasto-linea{
+    display:flex; justify-content:space-between; gap:8px; font-size:11px; color:var(--gris); padding:2px 0;
+  }
+  .gasto-detail .gasto-linea b{ color:var(--verde-oscuro); font-variant-numeric:tabular-nums; font-weight:700; }
+  .gasto-mas{ font-size:10.5px; color:var(--gris); font-style:italic; margin-top:2px; }
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(15,25,18,0.55); display:flex; align-items:flex-start;
+    justify-content:center; padding:40px 16px; z-index:20; overflow-y:auto;
+  }
+  .modal-overlay[hidden]{ display:none; }
+  .modal-card{ background:#fff; border-radius:12px; width:100%; max-width:520px; padding:18px 18px 22px; }
+  .modal-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .modal-head h2{ margin:0; font-size:16px; color:var(--verde-oscuro); }
+  .modal-close{
+    border:none; background:var(--verde-claro); color:var(--verde-oscuro); border-radius:50%;
+    width:26px; height:26px; font-size:13px; cursor:pointer;
+  }
+  #closed-search{
+    width:100%; font-size:13px; padding:8px 10px; border-radius:7px; border:1px solid var(--borde);
+    background:var(--arena); color:var(--tinta); margin-bottom:12px; font-family:inherit;
+  }
+  #closed-results{ max-height:60vh; overflow-y:auto; }
+  #closed-results .card{ margin-bottom:10px; }
 </style>
 </head>
 <body>
@@ -176,12 +218,29 @@
     <span id="session-email"></span>
     <span style="display:flex; gap:8px; align-items:center;">
       <button id="refresh">↻ Actualizar</button>
+      <button id="closed-btn">📁 Terminadas</button>
       <button id="logout">Salir</button>
     </span>
   </div>
 </header>
 
+<div id="closed-modal" class="modal-overlay" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <h2>Obras terminadas</h2>
+      <button id="closed-close" class="modal-close" type="button">✕</button>
+    </div>
+    <input type="text" id="closed-search" placeholder="Buscar por cliente, código o resumen…">
+    <div id="closed-results"></div>
+  </div>
+</div>
+
 <div class="summary" id="summary"></div>
+
+<div class="gastos-section" id="gastos-section">
+  <div class="gastos-head">Gasto acumulado — Oficina y Herramienta/Equipo <span class="gastos-note">(no son solicitudes de cliente)</span></div>
+  <div class="gastos-cards" id="gastos-cards"><div class="loading">Cargando gastos…</div></div>
+</div>
 
 <div id="controls">
   <div class="controls-row">
@@ -233,6 +292,11 @@ const STATUS_ORDER = [
   "Ganada - en ejecución","Facturado - pendiente de cobro",
   "Perdida / Descartada - No viable","Pagada - Cerrada"
 ];
+
+// Las obras "Pagada - Cerrada" ya están 100% cobradas y cerradas: no aportan nada al
+// tablero del día a día, así que se sacan del tablero/filtros por default y solo se
+// consultan a través del buscador de "Obras terminadas" (ver renderClosedResults).
+const HIDDEN_STATUS = "Pagada - Cerrada";
 
 let ALL_ROWS = [];
 
@@ -346,13 +410,14 @@ function populateSelect(id, values, current){
 }
 
 function populateFilterOptions(){
-  populateSelect("f-cliente", uniqueSorted(ALL_ROWS, "cliente"));
-  populateSelect("f-codigo", uniqueSorted(ALL_ROWS, "codigo"));
-  populateSelect("f-estado", uniqueSorted(ALL_ROWS, "estado_republica"));
-  populateSelect("f-unidad", uniqueSorted(ALL_ROWS, "unidad_negocio"));
-  populateSelect("f-responsable", uniqueSorted(ALL_ROWS, "responsable"));
-  populateSelect("f-canal", uniqueSorted(ALL_ROWS, "canal_entrada"));
-  populateSelect("f-status", STATUS_ORDER.filter(s => ALL_ROWS.some(r => r.status === s)));
+  const rows = ALL_ROWS.filter(r => r.status !== HIDDEN_STATUS);
+  populateSelect("f-cliente", uniqueSorted(rows, "cliente"));
+  populateSelect("f-codigo", uniqueSorted(rows, "codigo"));
+  populateSelect("f-estado", uniqueSorted(rows, "estado_republica"));
+  populateSelect("f-unidad", uniqueSorted(rows, "unidad_negocio"));
+  populateSelect("f-responsable", uniqueSorted(rows, "responsable"));
+  populateSelect("f-canal", uniqueSorted(rows, "canal_entrada"));
+  populateSelect("f-status", STATUS_ORDER.filter(s => s !== HIDDEN_STATUS && rows.some(r => r.status === s)));
 }
 
 function updateSummary(rows){
@@ -387,7 +452,9 @@ function applyFiltersAndSort(){
     canal_entrada: document.getElementById("f-canal").value,
     status: document.getElementById("f-status").value,
   };
-  let rows = ALL_ROWS.filter(r => Object.keys(f).every(k => !f[k] || r[k] === f[k]));
+  let rows = ALL_ROWS
+    .filter(r => r.status !== HIDDEN_STATUS)
+    .filter(r => Object.keys(f).every(k => !f[k] || r[k] === f[k]));
 
   updateSummary(rows);
 
@@ -512,6 +579,92 @@ function buildCard(r){
   return card;
 }
 
+// ---- Obras terminadas (buscador aparte, no aparecen en el tablero) ----
+function renderClosedResults(term){
+  const results = document.getElementById("closed-results");
+  const closed = ALL_ROWS.filter(r => r.status === HIDDEN_STATUS);
+  const t = (term || "").trim().toLowerCase();
+  const filtered = t ? closed.filter(r =>
+    (r.cliente || "").toLowerCase().includes(t) ||
+    (r.codigo || "").toLowerCase().includes(t) ||
+    (r.resumen_corto || "").toLowerCase().includes(t)
+  ) : closed;
+
+  if(!closed.length){
+    results.innerHTML = '<div class="empty-col">Todavía no hay obras marcadas como "Pagada - Cerrada".</div>';
+    return;
+  }
+  if(!filtered.length){
+    results.innerHTML = '<div class="empty-col">Sin resultados para esa búsqueda.</div>';
+    return;
+  }
+  results.innerHTML = "";
+  filtered.forEach(r => results.appendChild(buildCard(r)));
+}
+
+function openClosedModal(){
+  document.getElementById("closed-modal").hidden = false;
+  document.getElementById("closed-search").value = "";
+  renderClosedResults("");
+  document.getElementById("closed-search").focus();
+}
+function closeClosedModal(){
+  document.getElementById("closed-modal").hidden = true;
+}
+
+// ---- Gastos internos: Oficina y Herramienta/Equipo (no son solicitudes de cliente) ----
+const GASTOS_OBRAS = { "PRS-OFICINA": "Oficina", "PRS-EQUIPO": "Herramienta y Equipo" };
+
+function renderGastos(rows){
+  const container = document.getElementById("gastos-cards");
+  container.innerHTML = "";
+  Object.keys(GASTOS_OBRAS).forEach(codigo => {
+    const items = rows.filter(r => r.obra === codigo);
+    const total = items.reduce((a, r) => a + (Number(r.monto) || 0), 0);
+    const detailRows = items.slice(0, 8).map(r =>
+      `<div class="gasto-linea"><span>${fmtDate(r.fecha) || ""} · ${r.proveedor || r.concepto || "—"}</span><b>${fmtMoney(r.monto)}</b></div>`
+    ).join("");
+    const card = document.createElement("div");
+    card.className = "gasto-card";
+    card.innerHTML = `
+      <div class="gasto-nombre">${GASTOS_OBRAS[codigo]}</div>
+      <div class="gasto-total">${fmtMoney(total) || "$0.00"}</div>
+      <div class="gasto-count">${items.length} movimiento${items.length === 1 ? "" : "s"}</div>
+      ${items.length ? `
+        <div class="detail-toggle gasto-toggle">▸ Ver movimientos</div>
+        <div class="detail gasto-detail" hidden>${detailRows}${items.length > 8 ? `<div class="gasto-mas">+ ${items.length - 8} más</div>` : ""}</div>
+      ` : ""}
+    `;
+    if(items.length){
+      const toggle = card.querySelector(".gasto-toggle");
+      const detail = card.querySelector(".gasto-detail");
+      toggle.addEventListener("click", () => {
+        const willShow = detail.hidden;
+        detail.hidden = !willShow;
+        toggle.textContent = willShow ? "▾ Ocultar movimientos" : "▸ Ver movimientos";
+      });
+    }
+    container.appendChild(card);
+  });
+}
+
+async function loadGastos(){
+  const container = document.getElementById("gastos-cards");
+  container.innerHTML = '<div class="loading">Cargando gastos…</div>';
+  if(!SESSION) return;
+  try {
+    const res = await fetch(
+      SUPABASE_URL + "/rest/v1/gastos?select=obra,monto,proveedor,concepto,categoria,fecha,metodo_pago&obra=in.(PRS-OFICINA,PRS-EQUIPO)&order=fecha.desc",
+      { headers: { apikey: ANON_KEY, Authorization: "Bearer " + SESSION.access_token } }
+    );
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    const rows = await res.json();
+    renderGastos(rows);
+  } catch(err){
+    container.innerHTML = '<div class="error">No se pudo cargar el gasto interno (' + err.message + ').</div>';
+  }
+}
+
 async function loadData(){
   const board = document.getElementById("board");
   const summary = document.getElementById("summary");
@@ -556,7 +709,14 @@ document.getElementById("clearFilters").addEventListener("click", () => {
   applyFiltersAndSort();
 });
 
-document.getElementById("refresh").addEventListener("click", loadData);
+document.getElementById("refresh").addEventListener("click", () => { loadData(); loadGastos(); });
+
+document.getElementById("closed-btn").addEventListener("click", openClosedModal);
+document.getElementById("closed-close").addEventListener("click", closeClosedModal);
+document.getElementById("closed-modal").addEventListener("click", (e) => {
+  if(e.target.id === "closed-modal") closeClosedModal();
+});
+document.getElementById("closed-search").addEventListener("input", (e) => renderClosedResults(e.target.value));
 
 document.getElementById("logout").addEventListener("click", () => {
   clearSession();
@@ -576,6 +736,7 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
     await doLogin(email, password);
     showApp();
     loadData();
+    loadGastos();
   } catch(err){
     errorBox.textContent = err.message;
   } finally {
@@ -586,7 +747,7 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
 
 (async () => {
   const ok = await ensureSession();
-  if(ok){ showApp(); loadData(); }
+  if(ok){ showApp(); loadData(); loadGastos(); }
   else { showLogin(); }
 })();
 </script>
