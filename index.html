@@ -87,8 +87,7 @@
   .card .accion{ font-size:12px; color:var(--tinta); border-top:1px dashed var(--borde); padding-top:6px; margin-top:2px; }
   .card .accion b{ color:var(--verde-oscuro); }
   .card .monto{ font-size:13px; font-weight:700; color:var(--verde-oscuro); margin-top:4px; }
-  .card .contacto{ font-size:11.5px; color:var(--gris); margin-bottom:4px; }
-  .card .notas{ font-size:11.5px; color:var(--tinta); background:#f3ead9; border-radius:6px; padding:5px 7px; margin-top:6px; }
+  .card .descripcion{ font-size:12px; color:var(--tinta); line-height:1.4; margin-bottom:6px; }
   .card .termino{ font-size:11px; color:var(--amarillo); font-weight:600; margin-top:4px; }
   .card .montos{ margin-top:4px; border-top:1px solid var(--borde); padding-top:6px; }
   .card .monto-linea{
@@ -98,6 +97,19 @@
   .card .monto-linea b{ color:var(--verde-oscuro); font-weight:700; font-variant-numeric:tabular-nums; }
   .card .monto-linea.ejecutar b{ color:var(--amarillo); }
   .card .monto-linea.cobrar b{ color:var(--rojo); }
+  .card .detail-toggle{
+    font-size:11px; color:var(--verde); font-weight:700; margin-top:8px; cursor:pointer;
+    user-select:none; display:flex; align-items:center; gap:4px;
+  }
+  .card .detail-toggle:hover{ text-decoration:underline; }
+  .card .detail{ margin-top:6px; padding-top:8px; border-top:1px dashed var(--borde); }
+  .card .detail-line{ font-size:11.5px; color:var(--tinta); margin-bottom:6px; }
+  .card .detail-line:last-child{ margin-bottom:0; }
+  .card .detail-line span{
+    display:block; font-size:10px; color:var(--gris); font-weight:700;
+    text-transform:uppercase; letter-spacing:0.3px; margin-bottom:1px;
+  }
+  .card .detail-line.notas div{ background:#f3ead9; border-radius:6px; padding:5px 7px; }
   .empty-col, .empty-board{ font-size:12px; color:var(--gris); padding:12px 4px; font-style:italic; }
   #status-bar{ text-align:center; font-size:11.5px; color:var(--gris); padding:0 16px 18px; }
   #refresh{
@@ -105,15 +117,68 @@
     font-size:11.5px; padding:5px 12px; margin-top:10px;
   }
   .loading, .error{ padding:30px 16px; text-align:center; color:var(--gris); font-size:13px; }
+
+  #login-screen{
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background:var(--verde-oscuro); padding:16px;
+  }
+  #login-screen[hidden]{ display:none; }
+  .login-card{
+    background:#fff; border-radius:12px; padding:28px 24px; width:100%; max-width:320px;
+    box-shadow:0 4px 18px rgba(0,0,0,0.18);
+  }
+  .login-card h1{ margin:0 0 4px; font-size:17px; color:var(--verde-oscuro); }
+  .login-card p{ margin:0 0 18px; font-size:12px; color:var(--gris); }
+  .login-card label{ display:block; font-size:11px; font-weight:700; color:var(--gris); text-transform:uppercase; letter-spacing:0.3px; margin:12px 0 4px; }
+  .login-card input{
+    width:100%; font-size:14px; padding:9px 10px; border-radius:7px; border:1px solid var(--borde);
+    background:var(--arena); color:var(--tinta);
+  }
+  .login-card button{
+    width:100%; margin-top:18px; background:var(--verde); color:#fff; border:none;
+    border-radius:8px; padding:10px; font-size:14px; font-weight:650; cursor:pointer;
+  }
+  .login-card button:disabled{ opacity:0.6; }
+  .login-error{ color:var(--rojo); font-size:12px; margin-top:10px; min-height:14px; }
+  #app[hidden]{ display:none; }
+  .session-bar{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    margin-top:8px; font-size:11px; color:#a9c2b1;
+  }
+  #logout{
+    background:none; border:1px solid #3f6b53; color:#dcefe3; border-radius:20px;
+    font-size:11px; padding:4px 10px; cursor:pointer;
+  }
 </style>
 </head>
 <body>
+
+<div id="login-screen">
+  <form class="login-card" id="login-form">
+    <h1>Solicitudes de Clientes</h1>
+    <p>Acceso restringido — inicia sesión para continuar.</p>
+    <label for="login-email">Correo</label>
+    <input type="email" id="login-email" autocomplete="username" required>
+    <label for="login-password">Contraseña</label>
+    <input type="password" id="login-password" autocomplete="current-password" required>
+    <button type="submit" id="login-submit">Entrar</button>
+    <div class="login-error" id="login-error"></div>
+  </form>
+</div>
+
+<div id="app" hidden>
 
 <header>
   <h1>Solicitudes de Clientes</h1>
   <p id="subtitle">Cargando datos en vivo desde Supabase…</p>
   <p style="margin:2px 0 0; font-size:11px; color:#a9c2b1; font-style:italic;">*Todos los montos son antes de IVA</p>
-  <button id="refresh">↻ Actualizar</button>
+  <div class="session-bar">
+    <span id="session-email"></span>
+    <span style="display:flex; gap:8px; align-items:center;">
+      <button id="refresh">↻ Actualizar</button>
+      <button id="logout">Salir</button>
+    </span>
+  </div>
 </header>
 
 <div class="summary" id="summary"></div>
@@ -157,6 +222,8 @@
 <div id="board"><div class="loading">Cargando solicitudes…</div></div>
 <div id="status-bar"></div>
 
+</div><!-- /#app -->
+
 <script>
 const SUPABASE_URL = "https://kzeculiumpoaeoanwscd.supabase.co";
 const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6ZWN1bGl1bXBvYWVvYW53c2NkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MTAwODAsImV4cCI6MjA5NTk4NjA4MH0.egJ7PLjP7bWJ5Cs9xp7uZ9sECNiOfDx29d03Cs2rZQE";
@@ -169,6 +236,82 @@ const STATUS_ORDER = [
 
 let ALL_ROWS = [];
 
+// ---- Sesión (Supabase Auth) ----
+const SESSION_KEY = "prs_solicitudes_session";
+let SESSION = null;
+
+function loadSession(){
+  try{
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e){ return null; }
+}
+function saveSession(s){
+  SESSION = s;
+  try{ localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch(e){}
+}
+function clearSession(){
+  SESSION = null;
+  try{ localStorage.removeItem(SESSION_KEY); } catch(e){}
+}
+
+async function authRequest(grantType, body){
+  const res = await fetch(SUPABASE_URL + "/auth/v1/token?grant_type=" + grantType, {
+    method: "POST",
+    headers: { apikey: ANON_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json().catch(() => ({}));
+  if(!res.ok) throw new Error(data.error_description || data.msg || "No se pudo iniciar sesión.");
+  return data;
+}
+
+async function doLogin(email, password){
+  const data = await authRequest("password", { email, password });
+  saveSession({
+    access_token: data.access_token,
+    refresh_token: data.refresh_token,
+    expires_at: Date.now() + (data.expires_in * 1000),
+    email: (data.user && data.user.email) || email
+  });
+}
+
+async function doRefresh(){
+  if(!SESSION || !SESSION.refresh_token) return false;
+  try{
+    const data = await authRequest("refresh_token", { refresh_token: SESSION.refresh_token });
+    saveSession({
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      expires_at: Date.now() + (data.expires_in * 1000),
+      email: (data.user && data.user.email) || SESSION.email
+    });
+    return true;
+  } catch(e){ return false; }
+}
+
+// Devuelve true si hay una sesión válida (refrescándola si está por vencer).
+async function ensureSession(){
+  SESSION = loadSession();
+  if(!SESSION) return false;
+  if(Date.now() > SESSION.expires_at - 120000){
+    const ok = await doRefresh();
+    if(!ok){ clearSession(); return false; }
+  }
+  return true;
+}
+
+function showLogin(msg){
+  document.getElementById("app").hidden = true;
+  document.getElementById("login-screen").hidden = false;
+  document.getElementById("login-error").textContent = msg || "";
+}
+function showApp(){
+  document.getElementById("login-screen").hidden = true;
+  document.getElementById("app").hidden = false;
+  document.getElementById("session-email").textContent = SESSION.email || "";
+}
+
 function fmtMoney(n){
   if(n === null || n === undefined) return null;
   return "$" + Number(n).toLocaleString("es-MX", {minimumFractionDigits:2, maximumFractionDigits:2});
@@ -177,6 +320,14 @@ function fmtDate(d){
   if(!d) return null;
   const [y,m,day] = d.split('-');
   return `${day}/${m}/${y}`;
+}
+function fmtPercent(n){
+  if(n === null || n === undefined) return null;
+  return Number(n).toLocaleString("es-MX", {minimumFractionDigits:1, maximumFractionDigits:1}) + "%";
+}
+function fmtDateTime(d){
+  if(!d) return null;
+  return new Date(d).toLocaleString("es-MX", {dateStyle:"medium", timeStyle:"short"});
 }
 function estadoClass(estado){
   if(estado === "Durango") return "durango";
@@ -294,18 +445,37 @@ function buildCard(r){
   const card = document.createElement("div");
   card.className = "card " + estadoClass(r.estado_republica);
 
+  // Campos siempre visibles: código, cliente, descripción, próxima acción y montos
+  // (incluye utilidad/margen esperado y real — ya vienen null hasta que aplican, así que se ocultan solas).
   const montoLines = [
-    ["Cotización", r.monto_cotizacion, ""],
-    ["Costo presupuestado", r.costo_presupuestado, ""],
-    ["Costo real", r.costo_real, ""],
-    ["Precio de venta autorizado", r.precio_venta_autorizado, ""],
-    ["Ejecutado", r.monto_ejecutado, ""],
-    ["Pendiente de ejecutar", r.monto_pendiente_ejecutar, "ejecutar"],
-    ["Facturado", r.monto_facturado, ""],
-    ["Cobrado", r.monto_cobrado, ""],
-    ["Pendiente de cobrar", r.monto_pendiente_cobrar, "cobrar"],
-    ["Pendiente de facturar", r.monto_pendiente_facturar, ""],
+    ["Cotización", r.monto_cotizacion, "", fmtMoney],
+    ["Costo presupuestado", r.costo_presupuestado, "", fmtMoney],
+    ["Costo real", r.costo_real, "", fmtMoney],
+    ["Precio de venta autorizado", r.precio_venta_autorizado, "", fmtMoney],
+    ["Utilidad esperada", r.utilidad_esperada, "", fmtMoney],
+    ["Margen esperado", r.margen_esperado, "", fmtPercent],
+    ["Utilidad real", r.utilidad_real, "", fmtMoney],
+    ["Margen real", r.margen_real, "", fmtPercent],
+    ["Ejecutado", r.monto_ejecutado, "", fmtMoney],
+    ["Pendiente de ejecutar", r.monto_pendiente_ejecutar, "ejecutar", fmtMoney],
+    ["Facturado", r.monto_facturado, "", fmtMoney],
+    ["Cobrado", r.monto_cobrado, "", fmtMoney],
+    ["Pendiente de cobrar", r.monto_pendiente_cobrar, "cobrar", fmtMoney],
+    ["Pendiente de facturar", r.monto_pendiente_facturar, "", fmtMoney],
   ].filter(([,v]) => v !== null && v !== undefined);
+
+  // Campos secundarios: solo aparecen al hacer clic en "Ver detalle".
+  const detailFields = [];
+  if(r.descripcion && r.resumen_corto) detailFields.push(["Descripción completa", r.descripcion]);
+  if(r.contacto) detailFields.push(["Contacto", r.contacto]);
+  if(r.tipo_solicitud) detailFields.push(["Tipo de solicitud", r.tipo_solicitud]);
+  if(r.canal_entrada) detailFields.push(["Canal de entrada", r.canal_entrada]);
+  if(r.notas) detailFields.push(["Notas", r.notas, "notas"]);
+  if(r.nombre_tarea) detailFields.push(["Nombre de tarea", r.nombre_tarea]);
+  if(r.clickup_url) detailFields.push(["ClickUp", `<a href="${r.clickup_url}" target="_blank" rel="noopener">Ver tarea original ↗</a>`]);
+  if(r.created_at) detailFields.push(["Fecha de captura", fmtDateTime(r.created_at)]);
+  if(r.updated_at) detailFields.push(["Última actualización", fmtDateTime(r.updated_at)]);
+  const hasDetail = detailFields.length > 0;
 
   card.innerHTML = `
     <div class="cliente">${r.cliente || "(sin cliente)"}</div>
@@ -315,14 +485,30 @@ function buildCard(r){
       ${r.unidad_negocio ? `<span class="tag">${r.unidad_negocio}</span>` : ""}
       ${r.responsable ? `<span class="tag resp">${r.responsable}</span>` : ""}
     </div>
-    ${r.contacto ? `<div class="contacto">${r.contacto}</div>` : ""}
-    ${montoLines.length ? `<div class="montos">${montoLines.map(([label,v,cls]) =>
-      `<div class="monto-linea ${cls}"><span>${label}</span><b>${fmtMoney(v)}</b></div>`
+    ${(r.resumen_corto || r.descripcion) ? `<div class="descripcion">${r.resumen_corto || r.descripcion}</div>` : ""}
+    ${montoLines.length ? `<div class="montos">${montoLines.map(([label,v,cls,fmt]) =>
+      `<div class="monto-linea ${cls}"><span>${label}</span><b>${fmt(v)}</b></div>`
     ).join("")}</div>` : ""}
     ${r.proxima_accion ? `<div class="accion"><b>Próxima acción:</b> ${r.proxima_accion}</div>` : ""}
     ${r.fecha_termino_tentativa ? `<div class="termino">Término tentativo: ${fmtDate(r.fecha_termino_tentativa)}</div>` : ""}
-    ${r.notas ? `<div class="notas">${r.notas}</div>` : ""}
+    ${hasDetail ? `
+      <div class="detail-toggle">▸ Ver detalle</div>
+      <div class="detail" hidden>${detailFields.map(([label,val,cls]) =>
+        `<div class="detail-line ${cls||""}"><span>${label}</span><div>${val}</div></div>`
+      ).join("")}</div>
+    ` : ""}
   `;
+
+  if(hasDetail){
+    const toggle = card.querySelector(".detail-toggle");
+    const detail = card.querySelector(".detail");
+    toggle.addEventListener("click", () => {
+      const willShow = detail.hidden;
+      detail.hidden = !willShow;
+      toggle.textContent = willShow ? "▾ Ocultar detalle" : "▸ Ver detalle";
+    });
+  }
+
   return card;
 }
 
@@ -333,11 +519,19 @@ async function loadData(){
   const statusBar = document.getElementById("status-bar");
   board.innerHTML = '<div class="loading">Cargando solicitudes…</div>';
 
+  const ok = await ensureSession();
+  if(!ok){ showLogin("Tu sesión expiró o cerró. Vuelve a entrar."); return; }
+
   try {
     const res = await fetch(
       SUPABASE_URL + "/rest/v1/solicitudes?select=*&order=created_at.asc",
-      { headers: { apikey: ANON_KEY, Authorization: "Bearer " + ANON_KEY } }
+      { headers: { apikey: ANON_KEY, Authorization: "Bearer " + SESSION.access_token } }
     );
+    if(res.status === 401 || res.status === 403){
+      clearSession();
+      showLogin("Tu sesión expiró o cerró. Vuelve a entrar.");
+      return;
+    }
     if(!res.ok) throw new Error("HTTP " + res.status);
     ALL_ROWS = await res.json();
 
@@ -363,7 +557,38 @@ document.getElementById("clearFilters").addEventListener("click", () => {
 });
 
 document.getElementById("refresh").addEventListener("click", loadData);
-loadData();
+
+document.getElementById("logout").addEventListener("click", () => {
+  clearSession();
+  showLogin();
+});
+
+document.getElementById("login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = document.getElementById("login-email").value.trim();
+  const password = document.getElementById("login-password").value;
+  const btn = document.getElementById("login-submit");
+  const errorBox = document.getElementById("login-error");
+  errorBox.textContent = "";
+  btn.disabled = true;
+  btn.textContent = "Entrando…";
+  try {
+    await doLogin(email, password);
+    showApp();
+    loadData();
+  } catch(err){
+    errorBox.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Entrar";
+  }
+});
+
+(async () => {
+  const ok = await ensureSession();
+  if(ok){ showApp(); loadData(); }
+  else { showLogin(); }
+})();
 </script>
 
 </body>
