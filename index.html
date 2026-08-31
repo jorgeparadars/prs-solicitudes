@@ -64,6 +64,18 @@
   }
   #order-dir{ min-width:auto; width:76px; }
 
+  .ac-wrap{ position:relative; }
+  .ac-dropdown{
+    display:none; position:fixed; z-index:40;
+    background:#fff; border:1px solid var(--borde); border-radius:7px;
+    max-height:190px; overflow-y:auto;
+    box-shadow:0 6px 16px rgba(0,0,0,0.12);
+  }
+  .ac-dropdown.show{ display:block; }
+  .ac-item{ padding:8px 10px; font-size:12.5px; cursor:pointer; }
+  .ac-item:hover, .ac-item.active{ background:var(--verde-claro); }
+  .ac-empty{ padding:8px 10px; font-size:12px; color:var(--gris); font-style:italic; }
+
   #board{ display:flex; gap:12px; padding:14px 16px 40px; overflow-x:auto; scroll-snap-type:x proximity; }
   .col{ flex:0 0 280px; scroll-snap-align:start; }
   .col-head{
@@ -244,8 +256,8 @@
 
 <div id="controls">
   <div class="controls-row">
-    <div class="ctrl"><label>Cliente</label><select id="f-cliente"><option value="">Todos</option></select></div>
-    <div class="ctrl"><label>Código</label><select id="f-codigo"><option value="">Todos</option></select></div>
+    <div class="ctrl ac-wrap"><label>Cliente</label><input type="text" id="f-cliente" placeholder="Buscar cliente…" autocomplete="off"><div class="ac-dropdown" id="ac-cliente"></div></div>
+    <div class="ctrl ac-wrap"><label>Código</label><input type="text" id="f-codigo" placeholder="Buscar código…" autocomplete="off"><div class="ac-dropdown" id="ac-codigo"></div></div>
     <div class="ctrl"><label>Estado</label><select id="f-estado"><option value="">Todos</option></select></div>
     <div class="ctrl"><label>Unidad de negocio</label><select id="f-unidad"><option value="">Todas</option></select></div>
   </div>
@@ -409,15 +421,76 @@ function populateSelect(id, values, current){
   sel.value = keep && values.includes(keep) ? keep : "";
 }
 
+// Definición única de los filtros: campo de la fila, tipo (texto = búsqueda por substring
+// con dropdown propio; select = coincidencia exacta con <select>).
+const FILTERS = [
+  { id: "f-cliente",     field: "cliente",           type: "text"   , dropdown: "ac-cliente" },
+  { id: "f-codigo",      field: "codigo",            type: "text"   , dropdown: "ac-codigo" },
+  { id: "f-estado",      field: "estado_republica",  type: "select" },
+  { id: "f-unidad",      field: "unidad_negocio",    type: "select" },
+  { id: "f-responsable", field: "responsable",       type: "select" },
+  { id: "f-canal",       field: "canal_entrada",     type: "select" },
+  { id: "f-status",      field: "status",            type: "select" },
+];
+// Opciones disponibles por campo de texto, ya en cascada según los demás filtros activos
+// (se recalculan en populateFilterOptions; el dropdown luego las filtra por lo tecleado).
+const TEXT_OPTIONS = {};
+
+function getFilterValue(id){
+  return document.getElementById(id).value.trim();
+}
+function matchesFilter(row, field, type, value){
+  if(!value) return true;
+  if(type === "text") return (row[field] || "").toLowerCase().includes(value.toLowerCase());
+  return row[field] === value;
+}
+// Filas que cumplen todos los filtros activos EXCEPTO el que se está por recalcular —
+// así, si ya filtraste Cliente = "Qualitas Sonora", el selector de Código o Status solo
+// ofrece los valores que existen dentro de ese subconjunto, no todos los de la tabla.
+function rowsMatchingAllExcept(excludeId){
+  const base = ALL_ROWS.filter(r => r.status !== HIDDEN_STATUS);
+  return base.filter(r => FILTERS.every(f => f.id === excludeId || matchesFilter(r, f.field, f.type, getFilterValue(f.id))));
+}
+
+function renderAutocomplete(f){
+  const input = document.getElementById(f.id);
+  const dd = document.getElementById(f.dropdown);
+  const typed = input.value.trim().toLowerCase();
+  const options = TEXT_OPTIONS[f.field] || [];
+  const matches = typed ? options.filter(v => v.toLowerCase().includes(typed)) : options;
+  dd.innerHTML = matches.length
+    ? matches.map(v => `<div class="ac-item" data-value="${v.replace(/"/g,'&quot;')}">${v}</div>`).join("")
+    : '<div class="ac-empty">Sin coincidencias</div>';
+}
+function positionDropdown(f){
+  const input = document.getElementById(f.id);
+  const dd = document.getElementById(f.dropdown);
+  const rect = input.getBoundingClientRect();
+  dd.style.left = rect.left + "px";
+  dd.style.top = (rect.bottom + 3) + "px";
+  dd.style.width = rect.width + "px";
+}
+function showDropdown(f){
+  positionDropdown(f);
+  document.getElementById(f.dropdown).classList.add("show");
+}
+function hideAllDropdowns(){
+  FILTERS.filter(f => f.type === "text").forEach(f => document.getElementById(f.dropdown).classList.remove("show"));
+}
+
 function populateFilterOptions(){
-  const rows = ALL_ROWS.filter(r => r.status !== HIDDEN_STATUS);
-  populateSelect("f-cliente", uniqueSorted(rows, "cliente"));
-  populateSelect("f-codigo", uniqueSorted(rows, "codigo"));
-  populateSelect("f-estado", uniqueSorted(rows, "estado_republica"));
-  populateSelect("f-unidad", uniqueSorted(rows, "unidad_negocio"));
-  populateSelect("f-responsable", uniqueSorted(rows, "responsable"));
-  populateSelect("f-canal", uniqueSorted(rows, "canal_entrada"));
-  populateSelect("f-status", STATUS_ORDER.filter(s => s !== HIDDEN_STATUS && rows.some(r => r.status === s)));
+  FILTERS.forEach(f => {
+    const subset = rowsMatchingAllExcept(f.id);
+    const values = f.field === "status"
+      ? STATUS_ORDER.filter(s => s !== HIDDEN_STATUS && subset.some(r => r.status === s))
+      : uniqueSorted(subset, f.field);
+    if(f.type === "text"){
+      TEXT_OPTIONS[f.field] = values;
+      renderAutocomplete(f);
+    } else {
+      populateSelect(f.id, values, getFilterValue(f.id));
+    }
+  });
 }
 
 function updateSummary(rows){
@@ -443,18 +516,9 @@ function updateSummary(rows){
 }
 
 function applyFiltersAndSort(){
-  const f = {
-    cliente: document.getElementById("f-cliente").value,
-    codigo: document.getElementById("f-codigo").value,
-    estado_republica: document.getElementById("f-estado").value,
-    unidad_negocio: document.getElementById("f-unidad").value,
-    responsable: document.getElementById("f-responsable").value,
-    canal_entrada: document.getElementById("f-canal").value,
-    status: document.getElementById("f-status").value,
-  };
   let rows = ALL_ROWS
     .filter(r => r.status !== HIDDEN_STATUS)
-    .filter(r => Object.keys(f).every(k => !f[k] || r[k] === f[k]));
+    .filter(r => FILTERS.every(f => matchesFilter(r, f.field, f.type, getFilterValue(f.id))));
 
   updateSummary(rows);
 
@@ -699,13 +763,39 @@ async function loadData(){
   }
 }
 
-["f-cliente","f-codigo","f-estado","f-unidad","f-responsable","f-canal","f-status","order-field","order-dir"]
+FILTERS.forEach(f => {
+  const input = document.getElementById(f.id);
+  input.addEventListener("input", () => {
+    populateFilterOptions();
+    applyFiltersAndSort();
+    if(f.type === "text") showDropdown(f);
+  });
+  if(f.type === "text"){
+    input.addEventListener("focus", () => { renderAutocomplete(f); showDropdown(f); });
+    input.addEventListener("blur", () => { setTimeout(hideAllDropdowns, 150); });
+    input.addEventListener("keydown", (e) => { if(e.key === "Escape") hideAllDropdowns(); });
+    document.getElementById(f.dropdown).addEventListener("mousedown", (e) => {
+      const item = e.target.closest(".ac-item");
+      if(!item) return;
+      e.preventDefault();
+      input.value = item.dataset.value;
+      hideAllDropdowns();
+      populateFilterOptions();
+      applyFiltersAndSort();
+    });
+  }
+});
+["order-field","order-dir"]
   .forEach(id => document.getElementById(id).addEventListener("change", applyFiltersAndSort));
 
+document.querySelectorAll(".controls-row").forEach(row => row.addEventListener("scroll", hideAllDropdowns));
+window.addEventListener("resize", hideAllDropdowns);
+
 document.getElementById("clearFilters").addEventListener("click", () => {
-  ["f-cliente","f-codigo","f-estado","f-unidad","f-responsable","f-canal","f-status"]
-    .forEach(id => document.getElementById(id).value = "");
+  FILTERS.forEach(f => document.getElementById(f.id).value = "");
   document.getElementById("order-field").value = "pipeline";
+  hideAllDropdowns();
+  populateFilterOptions();
   applyFiltersAndSort();
 });
 
