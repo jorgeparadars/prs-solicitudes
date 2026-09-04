@@ -4,6 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PRS · Solicitudes</title>
+
+<!-- Ícono y comportamiento de app al agregar a pantalla de inicio (iOS/Android) -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<meta name="apple-mobile-web-app-title" content="PRS Sol">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1f3d2e">
 <style>
   :root{
     --verde-oscuro:#1f3d2e;
@@ -248,11 +259,6 @@
 </div>
 
 <div class="summary" id="summary"></div>
-
-<div class="gastos-section" id="gastos-section">
-  <div class="gastos-head">Gasto acumulado — Oficina y Herramienta/Equipo <span class="gastos-note">(no son solicitudes de cliente)</span></div>
-  <div class="gastos-cards" id="gastos-cards"><div class="loading">Cargando gastos…</div></div>
-</div>
 
 <div id="controls">
   <div class="controls-row">
@@ -578,10 +584,16 @@ function buildCard(r){
 
   // Campos siempre visibles: código, cliente, descripción, próxima acción y montos
   // (incluye utilidad/margen esperado y real — ya vienen null hasta que aplican, así que se ocultan solas).
+  // "Costo real" se captura desde el arranque de la obra y se va actualizando mientras
+  // avanza (reportes de Jorge, gastos de la app prs-gastos, movimientos bancarios). Mientras
+  // la obra sigue en ejecución es una cifra en curso (no definitiva); se aclara con la
+  // etiqueta para no confundirla con el costo real de cierre una vez facturada/cerrada.
+  const costoRealLabel = (r.status === "Ganada - en ejecución") ? "Costo real (en curso)" : "Costo real";
+
   const montoLines = [
     ["Cotización", r.monto_cotizacion, "", fmtMoney],
     ["Costo presupuestado", r.costo_presupuestado, "", fmtMoney],
-    ["Costo real", r.costo_real, "", fmtMoney],
+    [costoRealLabel, r.costo_real, "", fmtMoney],
     ["Precio de venta autorizado", r.precio_venta_autorizado, "", fmtMoney],
     ["Utilidad esperada", r.utilidad_esperada, "", fmtMoney],
     ["Margen esperado", r.margen_esperado, "", fmtPercent],
@@ -799,7 +811,7 @@ document.getElementById("clearFilters").addEventListener("click", () => {
   applyFiltersAndSort();
 });
 
-document.getElementById("refresh").addEventListener("click", () => { loadData(); loadGastos(); });
+document.getElementById("refresh").addEventListener("click", () => { loadData(); });
 
 document.getElementById("closed-btn").addEventListener("click", openClosedModal);
 document.getElementById("closed-close").addEventListener("click", closeClosedModal);
@@ -826,7 +838,6 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
     await doLogin(email, password);
     showApp();
     loadData();
-    loadGastos();
   } catch(err){
     errorBox.textContent = err.message;
   } finally {
@@ -837,7 +848,7 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
 
 (async () => {
   const ok = await ensureSession();
-  if(ok){ showApp(); loadData(); loadGastos(); }
+  if(ok){ showApp(); loadData(); }
   else { showLogin(); }
 })();
 </script>
